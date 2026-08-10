@@ -43,6 +43,17 @@
     <p class="ft-status" id="status">Ready</p>
   </footer>
 
+  <div id="restBar" class="rt" hidden>
+    <div class="rt-left">
+      <span class="rt-label" id="restLabel">Rest</span>
+      <span class="rt-time" id="restTime">1:30</span>
+    </div>
+    <div class="rt-actions">
+      <button id="restPlus" class="btn btn-ghost">+30s</button>
+      <button id="restSkip" class="btn btn-ghost">Skip</button>
+    </div>
+  </div>
+
   <div id="modal" class="modal" hidden>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-hd">
@@ -172,6 +183,24 @@
   .btn-ghost:hover, .btn-ghost:focus-visible { color: var(--chalk); border-color: var(--dust); }
   .ft-status { flex-basis: 100%; margin: 0; font-family: var(--num); font-size: 10.5px; color: var(--dust); }
 
+  /* ---------- rest timer ---------- */
+  .rt {
+    position: fixed; bottom: 96px; left: 0; right: 0; max-width: 560px; margin: 0 auto;
+    background: var(--steel); border: 1px solid var(--signal); border-radius: 10px;
+    padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; z-index: 15; box-shadow: 0 6px 24px rgba(0,0,0,.45);
+  }
+  .rt[hidden] { display: none; }
+  .rt-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .rt-label {
+    font-family: var(--display); text-transform: uppercase; letter-spacing: 0.08em;
+    font-size: 11px; color: var(--dust); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .rt-time { font-family: var(--num); font-size: 26px; font-weight: 600; color: var(--signal); line-height: 1; }
+  .rt.done { border-color: var(--beat); }
+  .rt.done .rt-time { color: var(--beat); }
+  .rt-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
   /* ---------- modal ---------- */
   .modal { position: fixed; inset: 0; background: rgba(6,9,11,.82); display: flex; align-items: flex-end; justify-content: center; z-index: 20; }
   .modal[hidden] { display: none; }   /* must beat the .modal display:flex above */
@@ -203,38 +232,38 @@
 
   var PLAN = {
     upperA: { name: "Upper A", ex: [
-      ["Incline dumbbell press", 3, "6–10"],
-      ["Chest-supported row", 3, "8–12"],
-      ["Lat pulldown", 3, "10–12"],
-      ["Seated dumbbell shoulder press", 3, "8–10"],
-      ["Dumbbell lateral raise", 3, "12–20"],
-      ["EZ bar curl", 2, "8–12"],
-      ["Triceps pushdown", 2, "10–15"]
+      ["Incline dumbbell press", 3, "6–10", 150],
+      ["Chest-supported row", 3, "8–12", 150],
+      ["Lat pulldown", 3, "10–12", 120],
+      ["Seated dumbbell shoulder press", 3, "8–10", 150],
+      ["Dumbbell lateral raise", 3, "12–20", 90],
+      ["EZ bar curl", 2, "8–12", 90],
+      ["Triceps pushdown", 2, "10–15", 90]
     ]},
     lowerA: { name: "Lower A", ex: [
-      ["Back squat", 3, "6–10"],
-      ["Romanian deadlift", 3, "8–12"],
-      ["Leg press", 3, "10–15"],
-      ["Seated leg curl", 3, "10–15"],
-      ["Standing calf raise", 3, "10–15"],
-      ["Hanging knee raise", 3, "10–15"]
+      ["Back squat", 3, "6–10", 180],
+      ["Romanian deadlift", 3, "8–12", 150],
+      ["Leg press", 3, "10–15", 120],
+      ["Seated leg curl", 3, "10–15", 90],
+      ["Standing calf raise", 3, "10–15", 90],
+      ["Hanging knee raise", 3, "10–15", 90]
     ]},
     upperB: { name: "Upper B", ex: [
-      ["Flat dumbbell press", 3, "8–12"],
-      ["Pull-up (assisted ok)", 3, "6–10"],
-      ["Bent-over row", 3, "8–12"],
-      ["Dumbbell lateral raise", 3, "12–20"],
-      ["Reverse pec deck", 3, "12–20"],
-      ["Incline dumbbell curl", 2, "8–12"],
-      ["Overhead cable extension", 2, "10–15"]
+      ["Flat dumbbell press", 3, "8–12", 150],
+      ["Pull-up (assisted ok)", 3, "6–10", 150],
+      ["Bent-over row", 3, "8–12", 150],
+      ["Dumbbell lateral raise", 3, "12–20", 90],
+      ["Reverse pec deck", 3, "12–20", 90],
+      ["Incline dumbbell curl", 2, "8–12", 90],
+      ["Overhead cable extension", 2, "10–15", 90]
     ]},
     lowerB: { name: "Lower B", ex: [
-      ["Bulgarian split squat", 3, "8–12 ea"],
-      ["Hack squat or leg press", 3, "10–15"],
-      ["Lying leg curl", 3, "10–15"],
-      ["Leg extension", 3, "12–15"],
-      ["Seated calf raise", 3, "12–20"],
-      ["Plank", 3, "30–60s"]
+      ["Bulgarian split squat", 3, "8–12 ea", 150],
+      ["Hack squat or leg press", 3, "10–15", 120],
+      ["Lying leg curl", 3, "10–15", 90],
+      ["Leg extension", 3, "12–15", 90],
+      ["Seated calf raise", 3, "12–20", 90],
+      ["Plank", 3, "30–60s", 90]
     ]}
   };
 
@@ -358,6 +387,58 @@
     return cap ? Math.min(defSets, cap) : defSets;
   }
 
+  /* ---------- rest timer ---------- */
+  var rest = { end: 0, tick: null, hideTimer: null };
+
+  function fmtTime(s) { return Math.floor(s / 60) + ":" + pad(s % 60); }
+
+  function startRest(seconds, exName) {
+    clearInterval(rest.tick);
+    clearTimeout(rest.hideTimer);
+    rest.end = Date.now() + seconds * 1000;
+    var bar = $("restBar");
+    bar.classList.remove("done");
+    $("restLabel").textContent = "Rest — " + exName;
+    bar.hidden = false;
+    restTick();
+    rest.tick = setInterval(restTick, 250);
+  }
+
+  function restTick() {
+    var left = Math.ceil((rest.end - Date.now()) / 1000);
+    if (left > 0) { $("restTime").textContent = fmtTime(left); return; }
+    clearInterval(rest.tick);
+    $("restTime").textContent = "GO";
+    $("restBar").classList.add("done");
+    beep();
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    rest.hideTimer = setTimeout(hideRest, 5000);
+  }
+
+  function hideRest() {
+    clearInterval(rest.tick);
+    clearTimeout(rest.hideTimer);
+    $("restBar").hidden = true;
+  }
+
+  var audioCtx = null;
+  function beep() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      [0, 0.35, 0.7].forEach(function (t) {
+        var o = audioCtx.createOscillator();
+        var g = audioCtx.createGain();
+        o.type = "sine"; o.frequency.value = 880;
+        g.gain.setValueAtTime(0.001, audioCtx.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + t + 0.25);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + 0.3);
+      });
+    } catch (e) { /* audio blocked — vibration/visual still fire */ }
+  }
+
   /* ---------- render ---------- */
   function render() {
     var day = PLAN[state.prefs.day];
@@ -366,7 +447,7 @@
     wrap.innerHTML = "";
 
     day.ex.forEach(function (item) {
-      var name = item[0], defSets = item[1], reps = item[2];
+      var name = item[0], defSets = item[1], reps = item[2], restSec = item[3] || 120;
       var n = setCount(defSets);
       var last = lastFor(name);
       if (!sess.ex[name]) sess.ex[name] = [];
@@ -432,6 +513,10 @@
 
           w.addEventListener("input", function () { row.w = w.value; mark(); queueSave(); });
           r.addEventListener("input", function () { row.r = r.value; mark(); queueSave(); });
+          // Set done (reps committed) → start the rest countdown.
+          r.addEventListener("change", function () {
+            if (r.value !== "") startRest(restSec, name);
+          });
 
           el.appendChild(num); el.appendChild(w); el.appendChild(r); el.appendChild(lastEl);
           sets.appendChild(el);
@@ -543,6 +628,19 @@
   $("bwInput").addEventListener("input", function (e) {
     getSession().bw = e.target.value; queueSave();
   });
+  $("restPlus").addEventListener("click", function () {
+    var base = Math.max(rest.end, Date.now());
+    rest.end = base + 30000;
+    var bar = $("restBar");
+    if (bar.classList.contains("done")) {   // "GO" showing → restart the countdown
+      clearTimeout(rest.hideTimer);
+      bar.classList.remove("done");
+      clearInterval(rest.tick);
+      rest.tick = setInterval(restTick, 250);
+    }
+    restTick();
+  });
+  $("restSkip").addEventListener("click", hideRest);
   $("historyBtn").addEventListener("click", showHistory);
   $("exportBtn").addEventListener("click", showExport);
   $("modalClose").addEventListener("click", closeModal);
