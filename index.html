@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12161a">
+<title>Log. — Workout Logger</title>
+</head>
+<body>
+<div id="app">
+  <header class="hd">
+    <div class="hd-row">
+      <h1 class="hd-title">Log<span class="hd-dot">.</span></h1>
+      <input type="date" id="dateInput" class="hd-date" aria-label="Session date">
+    </div>
+    <div class="phase" role="group" aria-label="Training phase">
+      <button class="phase-btn" data-phase="0">Wk 1–2</button>
+      <button class="phase-btn" data-phase="1">Wk 3–4</button>
+      <button class="phase-btn" data-phase="2">Wk 5+</button>
+    </div>
+    <p class="phase-note" id="phaseNote"></p>
+  </header>
+
+  <nav class="days" role="tablist" aria-label="Training day">
+    <button class="day-btn" role="tab" data-day="upperA">Upper A</button>
+    <button class="day-btn" role="tab" data-day="lowerA">Lower A</button>
+    <button class="day-btn" role="tab" data-day="upperB">Upper B</button>
+    <button class="day-btn" role="tab" data-day="lowerB">Lower B</button>
+  </nav>
+
+  <main id="sheet" class="sheet" aria-live="polite"></main>
+
+  <footer class="ft">
+    <div class="ft-bw">
+      <label for="bwInput">Bodyweight</label>
+      <input type="number" id="bwInput" inputmode="decimal" placeholder="—" step="0.1">
+      <span class="ft-unit">lb</span>
+    </div>
+    <div class="ft-actions">
+      <button id="historyBtn" class="btn btn-ghost">History</button>
+      <button id="exportBtn" class="btn btn-ghost">Export</button>
+    </div>
+    <p class="ft-status" id="status">Ready</p>
+  </footer>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-hd">
+        <h2 id="modalTitle" class="modal-title">History</h2>
+        <button id="modalClose" class="btn btn-ghost">Close</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  html, body { margin: 0; padding: 0; background: #12161a; }
+
+  #app {
+    --iron: #12161a;
+    --steel: #1b2228;
+    --edge: #2b343c;
+    --chalk: #e9eef2;
+    --dust: #7e8b96;
+    --signal: #f5c518;
+    --beat: #45c08a;
+    --display: "Helvetica Neue Condensed", "HelveticaNeue-CondensedBold", "Arial Narrow", "Roboto Condensed", "Liberation Sans Narrow", system-ui, sans-serif;
+    --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --num: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+    background: var(--iron);
+    color: var(--chalk);
+    font-family: var(--body);
+    min-height: 100vh;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 0 0 96px;
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+  }
+  #app *, #app *::before, #app *::after { box-sizing: border-box; }
+
+  /* ---------- header ---------- */
+  .hd { padding: 20px 16px 12px; border-bottom: 1px solid var(--edge); }
+  .hd-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .hd-title {
+    font-family: var(--display);
+    font-size: 34px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; margin: 0; line-height: 1;
+  }
+  .hd-dot { color: var(--signal); }
+  .hd-date {
+    background: var(--steel); color: var(--chalk); border: 1px solid var(--edge);
+    border-radius: 6px; padding: 7px 9px; font-family: var(--num); font-size: 13px;
+  }
+  .phase { display: flex; gap: 6px; margin-top: 14px; }
+  .phase-btn {
+    flex: 1; background: var(--steel); color: var(--dust);
+    border: 1px solid var(--edge); border-radius: 6px;
+    padding: 8px 4px; font-family: var(--display); font-size: 13px;
+    letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .phase-btn[aria-pressed="true"] { color: var(--iron); background: var(--signal); border-color: var(--signal); font-weight: 700; }
+  .phase-note { color: var(--dust); font-size: 12.5px; line-height: 1.45; margin: 10px 0 0; }
+
+  /* ---------- day tabs ---------- */
+  .days { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--edge); }
+  .day-btn {
+    background: none; border: none; border-bottom: 2px solid transparent;
+    color: var(--dust); font-family: var(--display); text-transform: uppercase;
+    letter-spacing: 0.07em; font-size: 13px; padding: 14px 2px; cursor: pointer;
+  }
+  .day-btn[aria-selected="true"] { color: var(--chalk); border-bottom-color: var(--signal); }
+
+  /* ---------- exercise cards ---------- */
+  .sheet { padding: 8px 12px 0; }
+  .ex { border-bottom: 1px solid var(--edge); padding: 16px 4px; }
+  .ex-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .ex-name {
+    font-family: var(--display); font-size: 18px; letter-spacing: 0.03em;
+    text-transform: uppercase; margin: 0; line-height: 1.15;
+  }
+  .ex-target { color: var(--dust); font-size: 12px; font-family: var(--num); margin: 4px 0 0; }
+  .ex-demo {
+    color: var(--dust); font-size: 11px; text-decoration: none;
+    border: 1px solid var(--edge); border-radius: 4px; padding: 4px 7px;
+    white-space: nowrap; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .ex-demo:hover, .ex-demo:focus-visible { color: var(--signal); border-color: var(--signal); }
+
+  .sets { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
+  .set {
+    display: grid; grid-template-columns: 22px 1fr 1fr 74px;
+    align-items: center; gap: 8px;
+  }
+  .set-n { font-family: var(--num); font-size: 12px; color: var(--dust); }
+  .set input {
+    width: 100%; background: var(--steel); border: 1px solid var(--edge);
+    color: var(--chalk); border-radius: 6px; padding: 11px 10px;
+    font-family: var(--num); font-size: 16px; text-align: center;
+  }
+  .set input::placeholder { color: #55606a; }
+  .set input:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; border-color: var(--signal); }
+  .set-last {
+    font-family: var(--num); font-size: 11.5px; color: var(--dust);
+    text-align: right; letter-spacing: -0.02em;
+  }
+  .set-last.beat { color: var(--beat); }
+  .set-hdr { color: var(--dust); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; }
+
+  /* ---------- footer ---------- */
+  .ft {
+    position: fixed; bottom: 0; left: 0; right: 0; max-width: 560px; margin: 0 auto;
+    background: var(--steel); border-top: 1px solid var(--edge);
+    padding: 10px 14px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .ft-bw { display: flex; align-items: center; gap: 7px; }
+  .ft-bw label { font-size: 11px; color: var(--dust); text-transform: uppercase; letter-spacing: 0.08em; }
+  .ft-bw input {
+    width: 68px; background: var(--iron); border: 1px solid var(--edge); color: var(--chalk);
+    border-radius: 6px; padding: 7px; font-family: var(--num); font-size: 14px; text-align: center;
+  }
+  .ft-unit { font-family: var(--num); font-size: 11px; color: var(--dust); }
+  .ft-actions { margin-left: auto; display: flex; gap: 8px; }
+  .btn {
+    font-family: var(--display); text-transform: uppercase; letter-spacing: 0.08em;
+    font-size: 12px; padding: 9px 13px; border-radius: 6px; cursor: pointer;
+  }
+  .btn-ghost { background: none; border: 1px solid var(--edge); color: var(--dust); }
+  .btn-ghost:hover, .btn-ghost:focus-visible { color: var(--chalk); border-color: var(--dust); }
+  .ft-status { flex-basis: 100%; margin: 0; font-family: var(--num); font-size: 10.5px; color: var(--dust); }
+
+  /* ---------- modal ---------- */
+  .modal { position: fixed; inset: 0; background: rgba(6,9,11,.82); display: flex; align-items: flex-end; justify-content: center; z-index: 20; }
+  .modal[hidden] { display: none; }   /* must beat the .modal display:flex above */
+  .modal-box { background: var(--steel); border: 1px solid var(--edge); border-radius: 12px 12px 0 0; width: 100%; max-width: 560px; max-height: 82vh; display: flex; flex-direction: column; }
+  .modal-hd { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--edge); }
+  .modal-title { font-family: var(--display); text-transform: uppercase; letter-spacing: 0.07em; font-size: 16px; margin: 0; }
+  .modal-body { overflow-y: auto; padding: 14px 16px 24px; }
+  .h-day { border-bottom: 1px solid var(--edge); padding: 12px 0; }
+  .h-day h3 { font-family: var(--display); text-transform: uppercase; font-size: 14px; letter-spacing: 0.06em; margin: 0 0 6px; }
+  .h-line { font-family: var(--num); font-size: 12px; color: var(--dust); line-height: 1.7; }
+  .h-line b { color: var(--chalk); font-weight: 500; }
+  .empty { color: var(--dust); font-size: 13px; line-height: 1.5; }
+  .export-area {
+    width: 100%; height: 240px; background: var(--iron); color: var(--chalk);
+    border: 1px solid var(--edge); border-radius: 6px; padding: 10px;
+    font-family: var(--num); font-size: 11px;
+  }
+
+  @media (prefers-reduced-motion: reduce) { #app * { transition: none !important; } }
+</style>
+
+<script>
+(function () {
+  var PHASES = [
+    { label: "Weeks 1–2", cap: 2, note: "2 sets per exercise. Stop 3–4 reps short of failure. This will feel too easy — that is the point after a year off." },
+    { label: "Weeks 3–4", cap: null, note: "Full sets. Stop 2–3 reps short of failure." },
+    { label: "Week 5+", cap: null, note: "Full sets. Last set of each exercise goes to 1–2 reps short of failure." }
+  ];
+
+  var PLAN = {
+    upperA: { name: "Upper A", ex: [
+      ["Incline dumbbell press", 3, "6–10"],
+      ["Chest-supported row", 3, "8–12"],
+      ["Lat pulldown", 3, "10–12"],
+      ["Seated dumbbell shoulder press", 3, "8–10"],
+      ["Dumbbell lateral raise", 3, "12–20"],
+      ["EZ bar curl", 2, "8–12"],
+      ["Triceps pushdown", 2, "10–15"]
+    ]},
+    lowerA: { name: "Lower A", ex: [
+      ["Back squat", 3, "6–10"],
+      ["Romanian deadlift", 3, "8–12"],
+      ["Leg press", 3, "10–15"],
+      ["Seated leg curl", 3, "10–15"],
+      ["Standing calf raise", 3, "10–15"],
+      ["Hanging knee raise", 3, "10–15"]
+    ]},
+    upperB: { name: "Upper B", ex: [
+      ["Flat dumbbell press", 3, "8–12"],
+      ["Pull-up (assisted ok)", 3, "6–10"],
+      ["Bent-over row", 3, "8–12"],
+      ["Dumbbell lateral raise", 3, "12–20"],
+      ["Reverse pec deck", 3, "12–20"],
+      ["Incline dumbbell curl", 2, "8–12"],
+      ["Overhead cable extension", 2, "10–15"]
+    ]},
+    lowerB: { name: "Lower B", ex: [
+      ["Bulgarian split squat", 3, "8–12 ea"],
+      ["Hack squat or leg press", 3, "10–15"],
+      ["Lying leg curl", 3, "10–15"],
+      ["Leg extension", 3, "12–15"],
+      ["Seated calf raise", 3, "12–20"],
+      ["Plank", 3, "30–60s"]
+    ]}
+  };
+
+  var KEY_SESSIONS = "wl:sessions";
+  var KEY_PREFS = "wl:prefs";
+  var state = { sessions: {}, prefs: { phase: 0, day: "upperA" }, date: today(), dirty: false };
+  var saveTimer = null;
+
+  function today() {
+    var d = new Date();
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function $(id) { return document.getElementById(id); }
+  function status(msg) { $("status").textContent = msg; }
+  function sessionKey() { return state.date + "|" + state.prefs.day; }
+
+  /* ---------- storage ----------
+     localStorage, with an in-memory fallback if the browser blocks it
+     (private mode, or file:// under some browsers). */
+  var mem = {};
+  var store = (function () {
+    try {
+      var probe = "wl:probe";
+      window.localStorage.setItem(probe, "1");
+      window.localStorage.removeItem(probe);
+      return {
+        ok: true,
+        get: function (k) { return window.localStorage.getItem(k); },
+        set: function (k, v) { window.localStorage.setItem(k, v); }
+      };
+    } catch (e) {
+      return {
+        ok: false,
+        get: function (k) { return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null; },
+        set: function (k, v) { mem[k] = v; }
+      };
+    }
+  })();
+
+  function loadAll() {
+    try {
+      var r = store.get(KEY_SESSIONS);
+      if (r) state.sessions = JSON.parse(r) || {};
+    } catch (e) { state.sessions = {}; }
+    try {
+      var p = store.get(KEY_PREFS);
+      if (p) {
+        var parsed = JSON.parse(p);
+        if (parsed && typeof parsed === "object") {
+          if (PHASES[parsed.phase]) state.prefs.phase = Number(parsed.phase);
+          if (PLAN[parsed.day]) state.prefs.day = parsed.day;
+        }
+      }
+    } catch (e) { /* keep defaults */ }
+
+    if (!store.ok) { status("Storage blocked by browser — this session only. Use Export before you close."); return; }
+    var n = countLogged();
+    status(n ? "Loaded " + n + " logged session" + (n === 1 ? "" : "s") : "Ready");
+  }
+
+  function countLogged() {
+    return Object.keys(state.sessions).filter(hasData).length;
+  }
+  function hasData(k) {
+    var s = state.sessions[k];
+    if (!s) return false;
+    if (s.bw) return true;
+    return Object.keys(s.ex || {}).some(function (n) { return (s.ex[n] || []).some(nonEmpty); });
+  }
+
+  function queueSave() {
+    state.dirty = true;
+    status("Saving…");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveAll, 700);
+  }
+
+  function saveAll() {
+    clearTimeout(saveTimer);
+    if (!state.dirty) return;
+    // Drop sessions that were merely visited but never filled in.
+    var clean = {};
+    Object.keys(state.sessions).forEach(function (k) {
+      if (hasData(k)) clean[k] = state.sessions[k];
+    });
+    try {
+      store.set(KEY_SESSIONS, JSON.stringify(clean));
+      store.set(KEY_PREFS, JSON.stringify(state.prefs));
+      state.dirty = false;
+      status(store.ok
+        ? "Saved " + new Date().toLocaleTimeString()
+        : "Held in memory only — Export before closing");
+    } catch (e) {
+      status("Save failed — use Export to copy your numbers out");
+    }
+  }
+
+  /* ---------- data helpers ---------- */
+  function getSession() {
+    var k = sessionKey();
+    if (!state.sessions[k]) state.sessions[k] = { day: state.prefs.day, date: state.date, ex: {}, bw: "" };
+    return state.sessions[k];
+  }
+
+  function lastFor(exName) {
+    var best = null;
+    Object.keys(state.sessions).forEach(function (k) {
+      var s = state.sessions[k];
+      if (s.day !== state.prefs.day) return;
+      if (s.date >= state.date) return;
+      if (!s.ex[exName] || !s.ex[exName].some(nonEmpty)) return;
+      if (!best || s.date > best.date) best = s;
+    });
+    return best ? best.ex[exName] : null;
+  }
+  function nonEmpty(row) { return row && (row.w !== "" && row.w != null || row.r !== "" && row.r != null); }
+
+  function setCount(defSets) {
+    var cap = PHASES[state.prefs.phase].cap;
+    return cap ? Math.min(defSets, cap) : defSets;
+  }
+
+  /* ---------- render ---------- */
+  function render() {
+    var day = PLAN[state.prefs.day];
+    var sess = getSession();
+    var wrap = $("sheet");
+    wrap.innerHTML = "";
+
+    day.ex.forEach(function (item) {
+      var name = item[0], defSets = item[1], reps = item[2];
+      var n = setCount(defSets);
+      var last = lastFor(name);
+      if (!sess.ex[name]) sess.ex[name] = [];
+
+      var card = document.createElement("section");
+      card.className = "ex";
+
+      var hd = document.createElement("div");
+      hd.className = "ex-hd";
+      var left = document.createElement("div");
+      var h = document.createElement("h2");
+      h.className = "ex-name"; h.textContent = name;
+      var t = document.createElement("p");
+      t.className = "ex-target"; t.textContent = n + " × " + reps;
+      left.appendChild(h); left.appendChild(t);
+      var demo = document.createElement("a");
+      demo.className = "ex-demo";
+      demo.href = "https://www.youtube.com/results?search_query=" + encodeURIComponent(name + " form tutorial");
+      demo.target = "_blank"; demo.rel = "noopener noreferrer";
+      demo.textContent = "Demo";
+      hd.appendChild(left); hd.appendChild(demo);
+      card.appendChild(hd);
+
+      var sets = document.createElement("div");
+      sets.className = "sets";
+
+      var hdr = document.createElement("div");
+      hdr.className = "set";
+      hdr.innerHTML = '<span></span><span class="set-hdr">Weight</span><span class="set-hdr">Reps</span><span class="set-hdr" style="text-align:right">Last</span>';
+      sets.appendChild(hdr);
+
+      for (var i = 0; i < n; i++) {
+        (function (idx) {
+          if (!sess.ex[name][idx]) sess.ex[name][idx] = { w: "", r: "" };
+          var row = sess.ex[name][idx];
+
+          var el = document.createElement("div");
+          el.className = "set";
+
+          var num = document.createElement("span");
+          num.className = "set-n"; num.textContent = idx + 1;
+
+          var w = document.createElement("input");
+          w.type = "number"; w.inputMode = "decimal"; w.placeholder = "lb";
+          w.value = row.w; w.setAttribute("aria-label", name + " set " + (idx + 1) + " weight");
+
+          var r = document.createElement("input");
+          r.type = "number"; r.inputMode = "numeric"; r.placeholder = "reps";
+          r.value = row.r; r.setAttribute("aria-label", name + " set " + (idx + 1) + " reps");
+
+          var lastEl = document.createElement("span");
+          lastEl.className = "set-last";
+          var lr = last && last[idx];
+          lastEl.textContent = lr && (lr.w || lr.r) ? (lr.w || "—") + " × " + (lr.r || "—") : "—";
+
+          function mark() {
+            var beat = lr && lr.w && lr.r && row.w && row.r &&
+              (parseFloat(row.w) > parseFloat(lr.w) ||
+               (parseFloat(row.w) === parseFloat(lr.w) && parseFloat(row.r) > parseFloat(lr.r)));
+            lastEl.classList.toggle("beat", !!beat);
+          }
+          mark();
+
+          w.addEventListener("input", function () { row.w = w.value; mark(); queueSave(); });
+          r.addEventListener("input", function () { row.r = r.value; mark(); queueSave(); });
+
+          el.appendChild(num); el.appendChild(w); el.appendChild(r); el.appendChild(lastEl);
+          sets.appendChild(el);
+        })(i);
+      }
+
+      card.appendChild(sets);
+      wrap.appendChild(card);
+    });
+
+    $("bwInput").value = sess.bw || "";
+    $("phaseNote").textContent = PHASES[state.prefs.phase].note;
+
+    Array.prototype.forEach.call(document.querySelectorAll(".phase-btn"), function (b) {
+      b.setAttribute("aria-pressed", String(Number(b.dataset.phase) === state.prefs.phase));
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".day-btn"), function (b) {
+      b.setAttribute("aria-selected", String(b.dataset.day === state.prefs.day));
+    });
+  }
+
+  /* ---------- history & export ---------- */
+  function openModal(title, node) {
+    $("modalTitle").textContent = title;
+    $("modalBody").innerHTML = "";
+    $("modalBody").appendChild(node);
+    $("modal").hidden = false;
+  }
+  function closeModal() { $("modal").hidden = true; }
+
+  function showHistory() {
+    var keys = Object.keys(state.sessions).filter(function (k) {
+      var s = state.sessions[k];
+      return Object.keys(s.ex || {}).some(function (n) { return s.ex[n].some(nonEmpty); });
+    }).sort().reverse();
+
+    var box = document.createElement("div");
+    if (!keys.length) {
+      box.className = "empty";
+      box.textContent = "Nothing logged yet. Enter a weight and reps on any set and it will appear here.";
+      openModal("History", box);
+      return;
+    }
+    keys.slice(0, 40).forEach(function (k) {
+      var s = state.sessions[k];
+      var d = document.createElement("div");
+      d.className = "h-day";
+      var h = document.createElement("h3");
+      h.textContent = s.date + " · " + (PLAN[s.day] ? PLAN[s.day].name : s.day) + (s.bw ? " · " + s.bw + " lb" : "");
+      d.appendChild(h);
+      Object.keys(s.ex).forEach(function (n) {
+        var rows = s.ex[n].filter(nonEmpty);
+        if (!rows.length) return;
+        var p = document.createElement("div");
+        p.className = "h-line";
+        var b = document.createElement("b");
+        b.textContent = n;
+        p.appendChild(b);
+        p.appendChild(document.createTextNode(" — " + rows.map(function (x) {
+          return (x.w || "—") + "×" + (x.r || "—");
+        }).join(", ")));
+        d.appendChild(p);
+      });
+      box.appendChild(d);
+    });
+    openModal("History", box);
+  }
+
+  function showExport() {
+    var lines = [];
+    Object.keys(state.sessions).sort().forEach(function (k) {
+      var s = state.sessions[k];
+      var body = [];
+      Object.keys(s.ex).forEach(function (n) {
+        var rows = s.ex[n].filter(nonEmpty);
+        if (rows.length) body.push("  " + n + ": " + rows.map(function (x) { return (x.w || "—") + "x" + (x.r || "—"); }).join(", "));
+      });
+      if (body.length) {
+        lines.push(s.date + "  " + (PLAN[s.day] ? PLAN[s.day].name : s.day) + (s.bw ? "  [" + s.bw + " lb]" : ""));
+        lines.push(body.join("\n"));
+        lines.push("");
+      }
+    });
+    var ta = document.createElement("textarea");
+    ta.className = "export-area";
+    ta.readOnly = true;
+    ta.value = lines.length ? lines.join("\n") : "Nothing logged yet.";
+    openModal("Export — select all and copy", ta);
+    setTimeout(function () { ta.focus(); ta.select(); }, 50);
+  }
+
+  /* ---------- wiring ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll(".phase-btn"), function (b) {
+    b.addEventListener("click", function () {
+      state.prefs.phase = Number(b.dataset.phase);
+      render(); queueSave();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".day-btn"), function (b) {
+    b.addEventListener("click", function () {
+      state.prefs.day = b.dataset.day;
+      render(); queueSave();
+    });
+  });
+  $("dateInput").addEventListener("change", function (e) {
+    state.date = e.target.value || today();
+    render();
+  });
+  $("bwInput").addEventListener("input", function (e) {
+    getSession().bw = e.target.value; queueSave();
+  });
+  $("historyBtn").addEventListener("click", showHistory);
+  $("exportBtn").addEventListener("click", showExport);
+  $("modalClose").addEventListener("click", closeModal);
+  $("modal").addEventListener("click", function (e) { if (e.target === $("modal")) closeModal(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
+
+  // Flush the debounced save if the tab is closed or backgrounded mid-typing.
+  window.addEventListener("beforeunload", saveAll);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") saveAll();
+  });
+
+  loadAll();
+  $("dateInput").value = state.date;
+  render();
+})();
+</script>
+</body>
+</html>
