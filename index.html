@@ -21,10 +21,27 @@
       <input type="date" id="dateInput" class="hd-date" aria-label="Session date">
     </div>
     <p class="today" id="todayLine"></p>
-    <div class="phase" role="group" aria-label="Training phase">
-      <button class="phase-btn" data-phase="0">Ease in</button>
-      <button class="phase-btn" data-phase="1">Ramp up</button>
-      <button class="phase-btn" data-phase="2">Full plan</button>
+    <div class="prog" role="group" aria-label="Program week">
+      <div class="prog-group">
+        <span class="prog-label">Ease in</span>
+        <div class="prog-weeks">
+          <button class="wk-btn" data-week="1">Wk 1</button>
+          <button class="wk-btn" data-week="2">Wk 2</button>
+        </div>
+      </div>
+      <div class="prog-group">
+        <span class="prog-label">Ramp up</span>
+        <div class="prog-weeks">
+          <button class="wk-btn" data-week="3">Wk 3</button>
+          <button class="wk-btn" data-week="4">Wk 4</button>
+        </div>
+      </div>
+      <div class="prog-group">
+        <span class="prog-label">Full plan</span>
+        <div class="prog-weeks">
+          <button class="wk-btn" data-week="5">Wk 5+</button>
+        </div>
+      </div>
     </div>
     <p class="phase-note" id="phaseNote"></p>
   </header>
@@ -131,15 +148,23 @@
     font-size: 15px; margin: 12px 0 0; color: var(--signal);
   }
   .today.rest-day { color: var(--dust); }
-  .phase { display: flex; gap: 6px; margin-top: 14px; }
-  .phase-btn {
+  .prog { display: flex; gap: 10px; margin-top: 14px; }
+  .prog-group { flex: 1; min-width: 0; }
+  .prog-group:last-child { flex: 0.6; }
+  .prog-label {
+    display: block; font-family: var(--display); font-size: 10px;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--dust);
+    margin-bottom: 5px; text-align: center; white-space: nowrap;
+  }
+  .prog-weeks { display: flex; gap: 5px; }
+  .wk-btn {
     flex: 1; background: var(--steel); color: var(--dust);
     border: 1px solid var(--edge); border-radius: 6px;
-    padding: 8px 4px; font-family: var(--display); font-size: 13px;
-    letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+    padding: 8px 2px; font-family: var(--display); font-size: 12px;
+    letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
     transition: color .15s, border-color .15s;
   }
-  .phase-btn[aria-pressed="true"] { color: var(--iron); background: var(--signal); border-color: var(--signal); font-weight: 700; }
+  .wk-btn[aria-pressed="true"] { color: var(--iron); background: var(--signal); border-color: var(--signal); font-weight: 700; }
   .phase-note { color: var(--dust); font-size: 12.5px; line-height: 1.45; margin: 10px 0 0; }
 
   /* ---------- day tabs ---------- */
@@ -328,7 +353,9 @@
 
   var KEY_SESSIONS = "wl:sessions";
   var KEY_PREFS = "wl:prefs";
-  var state = { sessions: {}, prefs: { phase: 0, day: "upperA", rest: 45 }, date: today(), dirty: false };
+  var state = { sessions: {}, prefs: { week: 1, day: "upperA", rest: 45 }, date: today(), dirty: false };
+
+  function currentPhase() { return state.prefs.week <= 2 ? 0 : state.prefs.week <= 4 ? 1 : 2; }
   var saveTimer = null;
 
   function today() {
@@ -394,7 +421,8 @@
       if (p) {
         var parsed = JSON.parse(p);
         if (parsed && typeof parsed === "object") {
-          if (PHASES[parsed.phase]) state.prefs.phase = Number(parsed.phase);
+          if (parsed.week >= 1 && parsed.week <= 5) state.prefs.week = Number(parsed.week);
+          else if (PHASES[parsed.phase]) state.prefs.week = [1, 3, 5][Number(parsed.phase)]; // migrate old phase pref
           if (PLAN[parsed.day]) state.prefs.day = parsed.day;
           if (parsed.rest > 0) state.prefs.rest = Number(parsed.rest);
         }
@@ -464,7 +492,7 @@
   function nonEmpty(row) { return row && (row.w !== "" && row.w != null || row.r !== "" && row.r != null); }
 
   function setCount(defSets) {
-    var cap = PHASES[state.prefs.phase].cap;
+    var cap = PHASES[currentPhase()].cap;
     return cap ? Math.min(defSets, cap) : defSets;
   }
 
@@ -639,10 +667,10 @@
     });
 
     $("bwInput").value = sess.bw || "";
-    $("phaseNote").textContent = PHASES[state.prefs.phase].note;
+    $("phaseNote").textContent = PHASES[currentPhase()].note;
 
-    Array.prototype.forEach.call(document.querySelectorAll(".phase-btn"), function (b) {
-      b.setAttribute("aria-pressed", String(Number(b.dataset.phase) === state.prefs.phase));
+    Array.prototype.forEach.call(document.querySelectorAll(".wk-btn"), function (b) {
+      b.setAttribute("aria-pressed", String(Number(b.dataset.week) === state.prefs.week));
     });
     Array.prototype.forEach.call(document.querySelectorAll(".day-btn"), function (b) {
       b.setAttribute("aria-selected", String(b.dataset.day === state.prefs.day));
@@ -948,9 +976,9 @@
   }
 
   /* ---------- wiring ---------- */
-  Array.prototype.forEach.call(document.querySelectorAll(".phase-btn"), function (b) {
+  Array.prototype.forEach.call(document.querySelectorAll(".wk-btn"), function (b) {
     b.addEventListener("click", function () {
-      state.prefs.phase = Number(b.dataset.phase);
+      state.prefs.week = Number(b.dataset.week);
       render(); queueSave();
     });
   });
