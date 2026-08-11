@@ -13,19 +13,20 @@
       <h1 class="hd-title">Log<span class="hd-dot">.</span></h1>
       <input type="date" id="dateInput" class="hd-date" aria-label="Session date">
     </div>
+    <p class="today" id="todayLine"></p>
     <div class="phase" role="group" aria-label="Training phase">
-      <button class="phase-btn" data-phase="0">Wk 1–2</button>
-      <button class="phase-btn" data-phase="1">Wk 3–4</button>
-      <button class="phase-btn" data-phase="2">Wk 5+</button>
+      <button class="phase-btn" data-phase="0">Ease in</button>
+      <button class="phase-btn" data-phase="1">Ramp up</button>
+      <button class="phase-btn" data-phase="2">Full plan</button>
     </div>
     <p class="phase-note" id="phaseNote"></p>
   </header>
 
   <nav class="days" role="tablist" aria-label="Training day">
-    <button class="day-btn" role="tab" data-day="upperA">Upper A</button>
-    <button class="day-btn" role="tab" data-day="lowerA">Lower A</button>
-    <button class="day-btn" role="tab" data-day="upperB">Upper B</button>
-    <button class="day-btn" role="tab" data-day="lowerB">Lower B</button>
+    <button class="day-btn" role="tab" data-day="upperA"><span class="day-wd">Mon</span>Upper A</button>
+    <button class="day-btn" role="tab" data-day="lowerA"><span class="day-wd">Tue</span>Lower A</button>
+    <button class="day-btn" role="tab" data-day="upperB"><span class="day-wd">Thu</span>Upper B</button>
+    <button class="day-btn" role="tab" data-day="lowerB"><span class="day-wd">Fri</span>Lower B</button>
   </nav>
 
   <main id="sheet" class="sheet" aria-live="polite"></main>
@@ -115,6 +116,11 @@
     background: var(--steel); color: var(--chalk); border: 1px solid var(--edge);
     border-radius: 6px; padding: 7px 9px; font-family: var(--num); font-size: 13px;
   }
+  .today {
+    font-family: var(--display); text-transform: uppercase; letter-spacing: 0.06em;
+    font-size: 15px; margin: 12px 0 0; color: var(--signal);
+  }
+  .today.rest-day { color: var(--dust); }
   .phase { display: flex; gap: 6px; margin-top: 14px; }
   .phase-btn {
     flex: 1; background: var(--steel); color: var(--dust);
@@ -131,8 +137,9 @@
   .day-btn {
     background: none; border: none; border-bottom: 2px solid transparent;
     color: var(--dust); font-family: var(--display); text-transform: uppercase;
-    letter-spacing: 0.07em; font-size: 13px; padding: 14px 2px; cursor: pointer;
+    letter-spacing: 0.07em; font-size: 13px; padding: 10px 2px 12px; cursor: pointer;
   }
+  .day-wd { display: block; font-size: 9px; letter-spacing: 0.14em; opacity: .65; margin-bottom: 2px; }
   .day-btn[aria-selected="true"] { color: var(--chalk); border-bottom-color: var(--signal); }
 
   /* ---------- exercise cards ---------- */
@@ -244,10 +251,14 @@
 <script>
 (function () {
   var PHASES = [
-    { label: "Weeks 1–2", cap: 2, note: "2 sets per exercise. Stop 3–4 reps short of failure. This will feel too easy — that is the point after a year off." },
-    { label: "Weeks 3–4", cap: null, note: "Full sets. Stop 2–3 reps short of failure." },
-    { label: "Week 5+", cap: null, note: "Full sets. Last set of each exercise goes to 1–2 reps short of failure." }
+    { label: "Weeks 1–2", cap: 2, note: "Your first 2 weeks back: 2 sets per exercise, stop 3–4 reps short of failure. It will feel too easy — that is the point after a year off." },
+    { label: "Weeks 3–4", cap: null, note: "Weeks 3–4: full sets, stop 2–3 reps short of failure." },
+    { label: "Week 5+", cap: null, note: "Week 5 and on: full sets, last set of each exercise goes to 1–2 reps short of failure." }
   ];
+
+  // Mon=1 … Sun=0 → which workout the calendar says today is
+  var SCHEDULE = { 1: "upperA", 2: "lowerA", 4: "upperB", 5: "lowerB" };
+  var DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   var PLAN = {
     upperA: { name: "Upper A", ex: [
@@ -296,6 +307,27 @@
     return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
   }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
+
+  // Parse "YYYY-MM-DD" as a LOCAL date (new Date(str) would treat it as UTC
+  // and give the wrong weekday in the evening in US time zones).
+  function weekdayOf(dateStr) {
+    var p = dateStr.split("-");
+    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])).getDay();
+  }
+
+  function applySchedule() {
+    var wd = weekdayOf(state.date);
+    var sched = SCHEDULE[wd];
+    var line = $("todayLine");
+    if (sched) {
+      state.prefs.day = sched;
+      line.textContent = DAY_NAMES[wd] + " — " + PLAN[sched].name + " day";
+      line.classList.remove("rest-day");
+    } else {
+      line.textContent = DAY_NAMES[wd] + " — rest day · just walk (7–10k steps)";
+      line.classList.add("rest-day");
+    }
+  }
   function $(id) { return document.getElementById(id); }
   function status(msg) { $("status").textContent = msg; }
   function sessionKey() { return state.date + "|" + state.prefs.day; }
@@ -650,6 +682,7 @@
   });
   $("dateInput").addEventListener("change", function (e) {
     state.date = e.target.value || today();
+    applySchedule();
     render();
   });
   $("bwInput").addEventListener("input", function (e) {
@@ -690,6 +723,7 @@
 
   loadAll();
   $("dateInput").value = state.date;
+  applySchedule();
   render();
 })();
 </script>
